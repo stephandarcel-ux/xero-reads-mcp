@@ -1,6 +1,6 @@
 {
   "name": "xero-reads-mcp",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Read-only Xero MCP server (stdio). No write tools, no dependencies.",
   "type": "module",
   "bin": { "xero-reads-mcp": "server.mjs" },

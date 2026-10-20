@@ -19,7 +19,7 @@
 //                                       the client-credentials flow (needs XERO_TENANT_ID)
 
 const API = "https://api.xero.com/api.xro/2.0";
-const SERVER = { name: "xero-reads", version: "1.0.0" };
+const SERVER = { name: "xero-reads", version: "1.0.1" };
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const CONTAINS_SCAN_PAGES = 10; // 10 x 100 invoices, for invoice_number "contains" scans
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -109,7 +109,10 @@ function invoiceSummary(i) {
     contact_id: i.Contact?.ContactID, contact_name: i.Contact?.Name,
     date: i.DateString?.slice(0, 10) || null, due_date: i.DueDateString?.slice(0, 10) || null,
     reference: i.Reference || null, total: i.Total, amount_due: i.AmountDue, amount_paid: i.AmountPaid,
-    currency: i.CurrencyCode, has_attachments: !!i.HasAttachments, updated_utc: i.UpdatedDateUTC,
+    currency: i.CurrencyCode,
+    // summaryOnly responses omit HasAttachments; report that as null (unknown), never false.
+    has_attachments: i.HasAttachments === undefined ? null : !!i.HasAttachments,
+    updated_utc: i.UpdatedDateUTC,
   };
 }
 
@@ -156,7 +159,7 @@ const TOOLS = {
   },
 
   "search-invoices": {
-    description: "Search invoices/bills. Filters: type (ACCPAY = bills, ACCREC = sales invoices), statuses, contact_id, date_from/date_to (invoice date, YYYY-MM-DD), invoice_number with number_match 'exact' or 'contains' (contains is case-insensitive and done here, not by Xero, because Xero's own Contains filter misses existing bills). Returns summaries, 100 per page; has_more says whether to ask for the next page. Use get-invoice for lines.",
+    description: "Search invoices/bills. Filters: type (ACCPAY = bills, ACCREC = sales invoices), statuses, contact_id, date_from/date_to (invoice date, YYYY-MM-DD), invoice_number with number_match 'exact' or 'contains' (contains is case-insensitive and done here, not by Xero, because Xero's own Contains filter misses existing bills). Returns summaries, 100 per page; has_more says whether to ask for the next page. has_attachments is null in these results because Xero leaves it out of summaries: use get-invoice or list-invoice-attachments. Use get-invoice for lines.",
     inputSchema: { type: "object", properties: {
       type: { type: "string", enum: ["ACCPAY", "ACCREC"] },
       statuses: { type: "array", items: { type: "string", enum: ["DRAFT", "SUBMITTED", "AUTHORISED", "PAID", "VOIDED", "DELETED"] } },
