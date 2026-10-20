@@ -19,7 +19,7 @@
 //                                       the client-credentials flow (needs XERO_TENANT_ID)
 
 const API = "https://api.xero.com/api.xro/2.0";
-const SERVER = { name: "xero-reads", version: "1.0.1" };
+const SERVER = { name: "xero-reads", version: "1.1.0" };
 const MAX_ATTACHMENT_BYTES = 8 * 1024 * 1024;
 const CONTAINS_SCAN_PAGES = 10; // 10 x 100 invoices, for invoice_number "contains" scans
 const GUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -235,6 +235,43 @@ const TOOLS = {
       const id = guid(a.invoice_id, "invoice_id");
       const rows = (await xeroGet(`/Invoices/${id}/History`)).HistoryRecords || [];
       return { count: rows.length, history: rows.map(h => ({ date_utc: h.DateUTCString || h.DateUTC, user: h.User, change: h.Changes, details: h.Details })) };
+    },
+  },
+
+  "search-bank-transactions": {
+    description: "Search money spent and received straight through a bank account (not bill or invoice payments). Use it before saying a refund or credit is missing: refunds are often recorded here as RECEIVE. Filters: contact_id, type (SPEND or RECEIVE, plus the prepayment, overpayment and transfer variants), date_from/date_to (YYYY-MM-DD), total (exact amount). 100 per page.",
+    inputSchema: { type: "object", properties: {
+      contact_id: { type: "string" },
+      type: { type: "string", enum: ["SPEND", "RECEIVE", "RECEIVE-PREPAYMENT", "SPEND-PREPAYMENT", "RECEIVE-OVERPAYMENT", "SPEND-OVERPAYMENT", "RECEIVE-TRANSFER", "SPEND-TRANSFER"] },
+      date_from: { type: "string", description: "YYYY-MM-DD" },
+      date_to: { type: "string", description: "YYYY-MM-DD" },
+      total: { type: "number", description: "Exact total, e.g. 1897.62" },
+      page: { type: "integer", minimum: 1, default: 1 },
+    } },
+    async run(a) {
+      const where = [];
+      if (a.contact_id) where.push(`Contact.ContactID==GUID("${guid(a.contact_id, "contact_id")}")`);
+      if (a.type) where.push(`Type=="${quoted(a.type)}"`);
+      if (a.date_from) where.push(`Date>=${ymd(a.date_from, "date_from")}`);
+      if (a.date_to) where.push(`Date<=${ymd(a.date_to, "date_to")}`);
+      if (a.total !== undefined && a.total !== null && a.total !== "") {
+        const t = Number(a.total);
+        if (!Number.isFinite(t)) throw new Error("total must be a number");
+        where.push(`Total==${t}`);
+      }
+      const page = Math.max(1, Number(a.page || 1));
+      const params = { page, order: "Date DESC" };
+      if (where.length) params.where = where.join(" AND ");
+      const rows = (await xeroGet("/BankTransactions", params)).BankTransactions || [];
+      return { page, count: rows.length, has_more: rows.length === 100, transactions: rows.map(b => ({
+        bank_transaction_id: b.BankTransactionID, type: b.Type, status: b.Status,
+        contact_id: b.Contact?.ContactID ?? null, contact_name: b.Contact?.Name ?? null,
+        date: b.DateString?.slice(0, 10) || null, total: b.Total, reference: b.Reference || null,
+        bank_account: b.BankAccount?.Name || null, is_reconciled: !!b.IsReconciled,
+        lines: (b.LineItems || []).map(l => ({ description: l.Description, account_code: l.AccountCode,
+          tax_type: l.TaxType, line_amount: l.LineAmount,
+          tracking: (l.Tracking || []).map(t => ({ category: t.Name, option: t.Option })) })),
+      })) };
     },
   },
 

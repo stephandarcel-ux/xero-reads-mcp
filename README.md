@@ -35,6 +35,7 @@ Scopes used: `accounting.invoices.read`, `accounting.contacts.read`, `accounting
 | `list-invoice-attachments` | `GET /Invoices/{id}/Attachments` |
 | `get-invoice-attachment` | `GET /Invoices/{id}/Attachments/{attachmentId}`, returned as base64, 8 MB cap |
 | `get-invoice-history` | `GET /Invoices/{id}/History` |
+| `search-bank-transactions` | `GET /BankTransactions` by contact, type, date range and exact total: money spent or received directly through a bank account |
 | `get-contact` | `GET /Contacts/{id}`: tax number, email, phones, addresses, contact people |
 
 ## Licence
